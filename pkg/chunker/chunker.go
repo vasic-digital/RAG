@@ -56,6 +56,11 @@ func NewFixedSizeChunker(config Config) *FixedSizeChunker {
 	return &FixedSizeChunker{config: config}
 }
 
+// setConfigForTesting allows tests to bypass validation for edge case testing.
+func (c *FixedSizeChunker) setConfigForTesting(config Config) {
+	c.config = config
+}
+
 // Chunk splits text into fixed-size chunks with overlap.
 func (c *FixedSizeChunker) Chunk(text string) []Chunk {
 	if text == "" {
@@ -140,6 +145,11 @@ func (c *RecursiveChunker) Chunk(text string) []Chunk {
 	return c.mergeAndOverlap(text, rawChunks)
 }
 
+// SplitRecursiveForTesting exposes splitRecursive for testing edge cases.
+func (c *RecursiveChunker) SplitRecursiveForTesting(text string, sepIdx int) []string {
+	return c.splitRecursive(text, sepIdx)
+}
+
 func (c *RecursiveChunker) splitRecursive(text string, sepIdx int) []string {
 	if len(text) <= c.config.ChunkSize {
 		return []string{text}
@@ -193,6 +203,13 @@ func (c *RecursiveChunker) splitRecursive(text string, sepIdx int) []string {
 	}
 
 	return result
+}
+
+// MergeAndOverlapForTesting exposes mergeAndOverlap for testing edge cases.
+func (c *RecursiveChunker) MergeAndOverlapForTesting(
+	originalText string, rawChunks []string,
+) []Chunk {
+	return c.mergeAndOverlap(originalText, rawChunks)
 }
 
 func (c *RecursiveChunker) mergeAndOverlap(

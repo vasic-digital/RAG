@@ -303,8 +303,8 @@ func (s *SemanticRetriever) Retrieve(
 // HybridRetriever combines semantic and keyword retrievers using
 // a configurable fusion strategy.
 type HybridRetriever struct {
-	semantic *SemanticRetriever
-	keyword  *KeywordRetriever
+	semantic retriever.Retriever
+	keyword  retriever.Retriever
 	fusion   FusionStrategy
 	config   HybridConfig
 }
@@ -323,10 +323,11 @@ func DefaultHybridConfig() HybridConfig {
 }
 
 // NewHybridRetriever creates a hybrid retriever combining semantic and
-// keyword search.
+// keyword search. Both semantic and keyword can be any retriever.Retriever
+// implementation (e.g., *SemanticRetriever, *KeywordRetriever).
 func NewHybridRetriever(
-	semantic *SemanticRetriever,
-	keyword *KeywordRetriever,
+	semantic retriever.Retriever,
+	keyword retriever.Retriever,
 	fusion FusionStrategy,
 	config HybridConfig,
 ) *HybridRetriever {

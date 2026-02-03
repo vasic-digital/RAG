@@ -257,3 +257,91 @@ func TestRerankerInterface(t *testing.T) {
 	var _ Reranker = &ScoreReranker{}
 	var _ Reranker = &MMRReranker{}
 }
+
+func TestNewMMRReranker_DefaultTopK(t *testing.T) {
+	// Test that TopK defaults to 10 when <= 0
+	tests := []struct {
+		name       string
+		topK       int
+		expectedK  int
+	}{
+		{name: "zero TopK", topK: 0, expectedK: 10},
+		{name: "negative TopK", topK: -5, expectedK: 10},
+		{name: "valid TopK", topK: 5, expectedK: 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewMMRReranker(Config{TopK: tt.topK, Lambda: 0.5})
+			assert.Equal(t, tt.expectedK, r.config.TopK)
+		})
+	}
+}
+
+func TestTextSimilarity_UnionZeroDefensive(t *testing.T) {
+	// The union == 0 case is unreachable because we check for empty words first.
+	// But for completeness, verify the function handles edge cases correctly.
+
+	// Both empty strings - returns 0.0 due to early check
+	assert.Equal(t, 0.0, textSimilarity("", ""))
+
+	// One empty - returns 0.0 due to early check
+	assert.Equal(t, 0.0, textSimilarity("word", ""))
+	assert.Equal(t, 0.0, textSimilarity("", "word"))
+
+	// Identical single word - union is 1, not 0
+	sim := textSimilarity("x", "x")
+	assert.Equal(t, 1.0, sim)
+
+	// Different single words - union is 2, not 0
+	sim = textSimilarity("x", "y")
+	assert.Equal(t, 0.0, sim) // No intersection
+}
+
+func TestJaccardSimilarity_UnionZero(t *testing.T) {
+	// Test the union == 0 defensive path using the test helper
+	// with both empty word slices
+	sim := JaccardSimilarityForTesting([]string{}, []string{})
+	assert.Equal(t, 0.0, sim)
+}
+
+func TestJaccardSimilarity_Cases(t *testing.T) {
+	tests := []struct {
+		name   string
+		aWords []string
+		bWords []string
+		want   float64
+	}{
+		{
+			name:   "identical words",
+			aWords: []string{"a"},
+			bWords: []string{"a"},
+			want:   1.0, // intersection=1, union=1
+		},
+		{
+			name:   "disjoint words",
+			aWords: []string{"a"},
+			bWords: []string{"b"},
+			want:   0.0, // intersection=0, union=2
+		},
+		{
+			name:   "partial overlap",
+			aWords: []string{"a", "b"},
+			bWords: []string{"b", "c"},
+			want:   1.0 / 3.0, // intersection=1, union=3
+		},
+		{
+			name:   "duplicate words in input",
+			aWords: []string{"a", "a", "a"},
+			bWords: []string{"a", "b"},
+			want:   0.5, // aSet={a}, bSet={a,b}, intersection=1, union=2
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sim := JaccardSimilarityForTesting(tt.aWords, tt.bWords)
+			assert.InDelta(t, tt.want, sim, 0.001)
+		})
+	}
+}

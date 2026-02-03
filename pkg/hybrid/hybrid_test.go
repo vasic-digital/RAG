@@ -495,3 +495,185 @@ func TestRRFStrategy_DocumentPreservation(t *testing.T) {
 	assert.Equal(t, "first version", result[0].Content)
 	assert.Equal(t, "set-a", result[0].Source)
 }
+
+// Tests for uncovered code paths
+
+func TestKeywordRetriever_CalculateTF_ZeroAvgDocLen(t *testing.T) {
+	// Tests calculateTF when avgDocLen == 0 (line 263-265)
+	// This happens when no documents are indexed
+	kr := NewKeywordRetriever()
+	// avgDocLen starts at 0 because totalDocs is 0
+	assert.Equal(t, float64(0), kr.avgDocLen)
+
+	// Index a single empty document to test edge case
+	kr.Index([]retriever.Document{
+		{ID: "1", Content: ""},
+	})
+	// After indexing empty doc, avgDocLen should be 0/1 = 0
+	// but totalDocs is 1
+
+	// Now remove it to get totalDocs back to 0
+	kr.Remove("1")
+	assert.Equal(t, float64(0), kr.avgDocLen)
+	assert.Equal(t, 0, kr.totalDocs)
+}
+
+func TestKeywordRetriever_RecalculateAvgDocLen_EmptyIndex(t *testing.T) {
+	// Tests recalculateAvgDocLen with empty index (line 275-279)
+	kr := NewKeywordRetriever()
+	// Initial state - no docs
+	assert.Equal(t, float64(0), kr.avgDocLen)
+	assert.Equal(t, 0, kr.totalDocs)
+
+	// Index and then remove to trigger recalculate with 0 docs
+	kr.Index([]retriever.Document{
+		{ID: "1", Content: "hello world"},
+	})
+	assert.Greater(t, kr.avgDocLen, float64(0))
+
+	kr.Remove("1")
+	// After removal, avgDocLen should be reset to 0
+	assert.Equal(t, float64(0), kr.avgDocLen)
+}
+
+func TestHybridRetriever_Retrieve_DefaultTopK(t *testing.T) {
+	// Test default topK when opts.TopK <= 0 (lines 409-412)
+	semantic := NewSemanticRetriever(&mockRetriever{
+		docs: []retriever.Document{
+			{ID: "1", Score: 0.9},
+			{ID: "2", Score: 0.8},
+		},
+	})
+
+	h := NewHybridRetriever(
+		semantic, NewKeywordRetriever(),
+		NewRRFStrategy(60), DefaultHybridConfig(),
+	)
+
+	// Pass TopK = 0 to trigger default (10)
+	docs, err := h.Retrieve(
+		context.Background(), "test", retriever.Options{TopK: 0},
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, docs)
+}
+
+func TestHybridRetriever_BothRetrieversNil(t *testing.T) {
+	// Test when both semantic and keyword are nil
+	h := NewHybridRetriever(nil, nil, NewRRFStrategy(60), DefaultHybridConfig())
+
+	docs, err := h.Retrieve(
+		context.Background(), "test", retriever.Options{TopK: 10},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, docs)
+}
+
+func TestHybridRetriever_BothRetrieversFailError(t *testing.T) {
+	// Test when both retrievers return errors (lines 387-391)
+	failingRetriever := &mockRetriever{
+		err: fmt.Errorf("retriever failed"),
+	}
+	semantic := NewSemanticRetriever(failingRetriever)
+
+	// Create a custom keyword retriever that fails
+	// Actually KeywordRetriever.Retrieve never returns error
+	// So we need both semantic to fail and keyword to also fail
+	// But KeywordRetriever can't fail. Let's check if we can make both fail.
+
+	// Create hybrid with semantic that fails and keyword set to nil
+	// When semantic fails and keyword is nil, keywordDocs will be empty
+	// and semanticErr will be non-nil
+	// This means semanticErr != nil && keywordErr == nil, so no error is returned
+
+	// To test line 387-391 we need BOTH to return error
+	// Since KeywordRetriever.Retrieve never returns error, we can't test this
+	// through KeywordRetriever. But the hybrid takes any retriever.Retriever.
+	// Actually the hybrid is hardcoded with *SemanticRetriever and *KeywordRetriever
+	// So we can't easily inject a failing keyword retriever.
+
+	// Let's test what happens when semantic fails
+	h := &HybridRetriever{
+		semantic: semantic,
+		keyword:  nil,
+		fusion:   NewRRFStrategy(60),
+		config:   DefaultHybridConfig(),
+	}
+
+	_, err := h.Retrieve(
+		context.Background(), "test", retriever.Options{TopK: 10},
+	)
+	// Since keyword is nil (not an error, just empty), only semantic fails
+	// So the error check at 387-391 is not triggered
+	require.NoError(t, err)
+}
+
+func TestKeywordRetriever_CalculateTF_WithZeroAvgDocLen_During_Retrieve(t *testing.T) {
+	// Test calculateTF when avgDocLen == 0 during actual retrieval
+	// This is tricky because Index() always recalculates avgDocLen
+	// We need to test the scenario where avgDocLen is 0 but we have matching terms
+	// This can happen if we manually set avgDocLen to 0 after indexing
+
+	kr := NewKeywordRetriever()
+	// Index documents normally
+	kr.Index([]retriever.Document{
+		{ID: "1", Content: "hello world"},
+	})
+
+	// Manually set avgDocLen to 0 to test the branch
+	kr.mu.Lock()
+	kr.avgDocLen = 0
+	kr.mu.Unlock()
+
+	// Now retrieve - should hit the if avgDocLen == 0 branch in calculateTF
+	docs, err := kr.Retrieve(
+		context.Background(), "hello", retriever.Options{TopK: 10},
+	)
+	require.NoError(t, err)
+	// Should still return results even with avgDocLen = 0
+	assert.NotEmpty(t, docs)
+}
+
+// failingKeywordRetriever is a wrapper that makes KeywordRetriever fail
+type failingKeywordRetriever struct {
+	*KeywordRetriever
+	err error
+}
+
+func (f *failingKeywordRetriever) Retrieve(
+	_ context.Context,
+	_ string,
+	_ retriever.Options,
+) ([]retriever.Document, error) {
+	return nil, f.err
+}
+
+func TestHybridRetriever_BothRetrieversReturnError(t *testing.T) {
+	// Test when both semantic and keyword retrievers return errors
+	// This triggers the error path at lines 387-391
+
+	semanticErr := fmt.Errorf("semantic retriever failed")
+	keywordErr := fmt.Errorf("keyword retriever failed")
+
+	// Create failing retrievers using the mockRetriever
+	failingSemantic := &mockRetriever{err: semanticErr}
+	failingKeyword := &mockRetriever{err: keywordErr}
+
+	// Create a HybridRetriever with both retrievers that fail
+	// Now that HybridRetriever uses retriever.Retriever interfaces,
+	// we can inject any implementation that fails
+	h := NewHybridRetriever(
+		failingSemantic,
+		failingKeyword,
+		NewRRFStrategy(60),
+		DefaultHybridConfig(),
+	)
+
+	_, err := h.Retrieve(
+		context.Background(), "test", retriever.Options{TopK: 10},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both retrievers failed")
+	assert.Contains(t, err.Error(), "semantic")
+	assert.Contains(t, err.Error(), "keyword")
+}

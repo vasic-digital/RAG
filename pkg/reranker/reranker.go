@@ -197,6 +197,16 @@ func textSimilarity(a, b string) float64 {
 		return 0.0
 	}
 
+	return jaccardSimilarity(aWords, bWords)
+}
+
+// JaccardSimilarityForTesting exposes jaccardSimilarity for testing edge cases.
+func JaccardSimilarityForTesting(aWords, bWords []string) float64 {
+	return jaccardSimilarity(aWords, bWords)
+}
+
+// jaccardSimilarity computes Jaccard similarity between two word slices.
+func jaccardSimilarity(aWords, bWords []string) float64 {
 	aSet := make(map[string]bool, len(aWords))
 	for _, w := range aWords {
 		aSet[w] = true
