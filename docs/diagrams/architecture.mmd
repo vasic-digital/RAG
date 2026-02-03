@@ -1,0 +1,75 @@
+graph TD
+    subgraph "digital.vasic.rag"
+        subgraph "pkg/retriever"
+            Document["Document\n(ID, Content, Metadata, Score, Source)"]
+            Options["Options\n(TopK, MinScore, Filter)"]
+            RetrieverInterface["&laquo;interface&raquo;\nRetriever"]
+            MultiRetriever["MultiRetriever\n(parallel query, dedup, merge)"]
+        end
+
+        subgraph "pkg/chunker"
+            ChunkerInterface["&laquo;interface&raquo;\nChunker"]
+            FixedSizeChunker["FixedSizeChunker\n(sliding window)"]
+            RecursiveChunker["RecursiveChunker\n(hierarchical split)"]
+            SentenceChunker["SentenceChunker\n(sentence boundaries)"]
+            Chunk["Chunk\n(Content, Start, End)"]
+        end
+
+        subgraph "pkg/reranker"
+            RerankerInterface["&laquo;interface&raquo;\nReranker"]
+            ScoreReranker["ScoreReranker\n(sort by score)"]
+            MMRReranker["MMRReranker\n(diversity + relevance)"]
+        end
+
+        subgraph "pkg/pipeline"
+            StageInterface["&laquo;interface&raquo;\nStage"]
+            Pipeline["Pipeline\n(retriever + stages)"]
+            Builder["Builder\n(fluent API)"]
+            Result["Result\n(Documents, Output)"]
+        end
+
+        subgraph "pkg/hybrid"
+            FusionInterface["&laquo;interface&raquo;\nFusionStrategy"]
+            RRFStrategy["RRFStrategy\n(Reciprocal Rank Fusion)"]
+            LinearStrategy["LinearStrategy\n(weighted combination)"]
+            KeywordRetriever["KeywordRetriever\n(BM25)"]
+            SemanticRetriever["SemanticRetriever\n(vector wrapper)"]
+            HybridRetriever["HybridRetriever\n(parallel + fuse)"]
+        end
+    end
+
+    %% Dependencies
+    RerankerInterface -->|uses| Document
+    ScoreReranker -->|implements| RerankerInterface
+    MMRReranker -->|implements| RerankerInterface
+
+    Pipeline -->|uses| RetrieverInterface
+    Pipeline -->|uses| StageInterface
+    Pipeline -->|produces| Result
+    Builder -->|builds| Pipeline
+    Result -->|contains| Document
+
+    HybridRetriever -->|uses| SemanticRetriever
+    HybridRetriever -->|uses| KeywordRetriever
+    HybridRetriever -->|uses| FusionInterface
+    HybridRetriever -->|implements| RetrieverInterface
+    SemanticRetriever -->|wraps| RetrieverInterface
+    KeywordRetriever -->|implements| RetrieverInterface
+    RRFStrategy -->|implements| FusionInterface
+    LinearStrategy -->|implements| FusionInterface
+    MultiRetriever -->|implements| RetrieverInterface
+    MultiRetriever -->|aggregates| RetrieverInterface
+
+    FixedSizeChunker -->|implements| ChunkerInterface
+    RecursiveChunker -->|implements| ChunkerInterface
+    SentenceChunker -->|implements| ChunkerInterface
+    ChunkerInterface -->|produces| Chunk
+
+    %% Styling
+    classDef iface fill:#e1f5fe,stroke:#0277bd,color:#01579b
+    classDef impl fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    classDef data fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+
+    class RetrieverInterface,ChunkerInterface,RerankerInterface,StageInterface,FusionInterface iface
+    class MultiRetriever,FixedSizeChunker,RecursiveChunker,SentenceChunker,ScoreReranker,MMRReranker,Pipeline,Builder,RRFStrategy,LinearStrategy,KeywordRetriever,SemanticRetriever,HybridRetriever impl
+    class Document,Options,Chunk,Result data

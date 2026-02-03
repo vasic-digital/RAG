@@ -1,0 +1,44 @@
+sequenceDiagram
+    participant Client
+    participant Pipeline
+    participant HybridRetriever
+    participant SemanticRetriever
+    participant KeywordRetriever
+    participant FusionStrategy
+    participant RerankerStage
+    participant FormatterStage
+
+    Client->>Pipeline: Execute(ctx, query)
+
+    Note over Pipeline: Retrieval Stage
+    Pipeline->>HybridRetriever: Retrieve(ctx, query, opts)
+
+    par Parallel Retrieval
+        HybridRetriever->>SemanticRetriever: Retrieve(ctx, query, preOpts)
+        Note over SemanticRetriever: Delegates to inner<br/>Retriever (vector DB)
+        SemanticRetriever-->>HybridRetriever: semanticDocs
+
+        HybridRetriever->>KeywordRetriever: Retrieve(ctx, query, preOpts)
+        Note over KeywordRetriever: BM25 scoring<br/>IDF * TF for each term
+        KeywordRetriever-->>HybridRetriever: keywordDocs
+    end
+
+    Note over HybridRetriever: Fusion Stage
+    HybridRetriever->>FusionStrategy: Fuse(semanticDocs, keywordDocs)
+    Note over FusionStrategy: RRF: score = sum(1/(k+rank))<br/>or Linear: weighted normalized scores
+    FusionStrategy-->>HybridRetriever: fusedDocs
+
+    Note over HybridRetriever: Apply MinScore filter<br/>Limit to TopK
+    HybridRetriever-->>Pipeline: []Document
+
+    Note over Pipeline: Reranking Stage
+    Pipeline->>RerankerStage: Rerank(ctx, query, docs)
+    Note over RerankerStage: MMR: balance relevance<br/>vs. diversity<br/>or Score: sort by score
+    RerankerStage-->>Pipeline: rerankedDocs
+
+    Note over Pipeline: Formatting Stage
+    Pipeline->>FormatterStage: Format(ctx, docs)
+    Note over FormatterStage: Custom output<br/>formatting
+    FormatterStage-->>Pipeline: formattedOutput
+
+    Pipeline-->>Client: Result{Documents, Output}

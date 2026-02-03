@@ -1,0 +1,220 @@
+classDiagram
+    direction TB
+
+    class Document {
+        +string ID
+        +string Content
+        +map~string, any~ Metadata
+        +float64 Score
+        +string Source
+    }
+
+    class Options {
+        +int TopK
+        +float64 MinScore
+        +map~string, any~ Filter
+    }
+
+    class Chunk {
+        +string Content
+        +int Start
+        +int End
+        +map~string, any~ Metadata
+    }
+
+    class Config_chunker {
+        +int ChunkSize
+        +int Overlap
+        +[]string Separators
+    }
+
+    class Config_reranker {
+        +float64 Lambda
+        +int TopK
+    }
+
+    class Config_pipeline {
+        +Options RetrievalOpts
+        +int MaxStages
+    }
+
+    class HybridConfig {
+        +int PreRetrieveMultiplier
+    }
+
+    class Result {
+        +[]Document Documents
+        +any Output
+    }
+
+    class Retriever {
+        <<interface>>
+        +Retrieve(ctx, query, opts) ([]Document, error)
+    }
+
+    class Chunker {
+        <<interface>>
+        +Chunk(text) []Chunk
+    }
+
+    class Reranker {
+        <<interface>>
+        +Rerank(ctx, query, docs) ([]Document, error)
+    }
+
+    class Stage {
+        <<interface>>
+        +Process(ctx, input) (any, error)
+    }
+
+    class RerankerStage {
+        <<interface>>
+        +Rerank(ctx, query, docs) ([]Document, error)
+    }
+
+    class FormatterStage {
+        <<interface>>
+        +Format(ctx, docs) (any, error)
+    }
+
+    class FusionStrategy {
+        <<interface>>
+        +Fuse(resultSets...) []Document
+    }
+
+    class MultiRetriever {
+        -[]Retriever retrievers
+        -sync.RWMutex mu
+        +NewMultiRetriever(retrievers...) *MultiRetriever
+        +AddRetriever(r)
+        +Retrieve(ctx, query, opts) ([]Document, error)
+    }
+
+    class FixedSizeChunker {
+        -Config config
+        +NewFixedSizeChunker(config) *FixedSizeChunker
+        +Chunk(text) []Chunk
+    }
+
+    class RecursiveChunker {
+        -Config config
+        +NewRecursiveChunker(config) *RecursiveChunker
+        +Chunk(text) []Chunk
+    }
+
+    class SentenceChunker {
+        -Config config
+        +NewSentenceChunker(config) *SentenceChunker
+        +Chunk(text) []Chunk
+    }
+
+    class ScoreReranker {
+        -Config config
+        +NewScoreReranker(config) *ScoreReranker
+        +Rerank(ctx, query, docs) ([]Document, error)
+    }
+
+    class MMRReranker {
+        -Config config
+        +NewMMRReranker(config) *MMRReranker
+        +Rerank(ctx, query, docs) ([]Document, error)
+    }
+
+    class Pipeline {
+        -Retriever retriever
+        -[]Stage stages
+        -Config config
+        +Execute(ctx, query) (*Result, error)
+    }
+
+    class Builder {
+        -Retriever retriever
+        -[]Stage stages
+        -Config config
+        -error err
+        +NewPipeline() *Builder
+        +WithConfig(config) *Builder
+        +Retrieve(r) *Builder
+        +Rerank(reranker) *Builder
+        +Format(formatter) *Builder
+        +AddStage(stage) *Builder
+        +Build() (*Pipeline, error)
+    }
+
+    class StageFunc {
+        +Process(ctx, input) (any, error)
+    }
+
+    class RRFStrategy {
+        +float64 K
+        +NewRRFStrategy(k) *RRFStrategy
+        +Fuse(resultSets...) []Document
+    }
+
+    class LinearStrategy {
+        +[]float64 Weights
+        +NewLinearStrategy(weights...) *LinearStrategy
+        +Fuse(resultSets...) []Document
+    }
+
+    class KeywordRetriever {
+        -map documents
+        -map termFreqs
+        -map docFreqs
+        -map docLengths
+        -float64 avgDocLen
+        -int totalDocs
+        -float64 k1
+        -float64 b
+        -sync.RWMutex mu
+        +NewKeywordRetriever() *KeywordRetriever
+        +Index(docs)
+        +Remove(id)
+        +Retrieve(ctx, query, opts) ([]Document, error)
+    }
+
+    class SemanticRetriever {
+        -Retriever inner
+        +NewSemanticRetriever(inner) *SemanticRetriever
+        +Retrieve(ctx, query, opts) ([]Document, error)
+    }
+
+    class HybridRetriever {
+        -SemanticRetriever semantic
+        -KeywordRetriever keyword
+        -FusionStrategy fusion
+        -HybridConfig config
+        +NewHybridRetriever(semantic, keyword, fusion, config) *HybridRetriever
+        +Retrieve(ctx, query, opts) ([]Document, error)
+    }
+
+    %% Interface implementations
+    MultiRetriever ..|> Retriever
+    KeywordRetriever ..|> Retriever
+    SemanticRetriever ..|> Retriever
+    HybridRetriever ..|> Retriever
+
+    FixedSizeChunker ..|> Chunker
+    RecursiveChunker ..|> Chunker
+    SentenceChunker ..|> Chunker
+
+    ScoreReranker ..|> Reranker
+    MMRReranker ..|> Reranker
+    ScoreReranker ..|> RerankerStage
+    MMRReranker ..|> RerankerStage
+
+    StageFunc ..|> Stage
+
+    RRFStrategy ..|> FusionStrategy
+    LinearStrategy ..|> FusionStrategy
+
+    %% Composition relationships
+    MultiRetriever o-- Retriever : aggregates
+    Pipeline *-- Retriever : has
+    Pipeline *-- Stage : has stages
+    Builder ..> Pipeline : builds
+    Pipeline ..> Result : produces
+    HybridRetriever *-- SemanticRetriever
+    HybridRetriever *-- KeywordRetriever
+    HybridRetriever *-- FusionStrategy
+    SemanticRetriever *-- Retriever : wraps
