@@ -10,15 +10,12 @@ same session as the change.** Coverage and green suites are not evidence.
 
 ### Acceptance demo for this module
 
-<!-- TODO: replace this block with the exact command(s) that exercise this
-     module end-to-end against real dependencies, and the expected output.
-     The commands must run the real artifact (built binary, deployed
-     container, real service) — no in-process fakes, no mocks, no
-     `httptest.NewServer`, no Robolectric, no JSDOM as proof of done. -->
-
 ```bash
-# TODO
+# Ingest a document → fixed/recursive chunking → hybrid retrieve (BM25+vector) → MMR rerank
+cd RAG && GOMAXPROCS=2 nice -n 19 go test -count=1 -race -v ./tests/integration/...
 ```
+Expect: PASS; exercises chunker/retriever/reranker composed in a Pipeline per `RAG/README.md`. Hybrid retrieval uses RRF fusion by default; Linear fusion and MMR diversity require explicit options.
+
 
 ## Project Overview
 
