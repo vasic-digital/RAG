@@ -17,7 +17,7 @@ import (
 
 func TestEmptyInputHandling(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	fixedChunker := chunker.NewFixedSizeChunker(chunker.DefaultConfig())
@@ -32,7 +32,7 @@ func TestEmptyInputHandling(t *testing.T) {
 
 func TestEmptyDocumentReranking(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	ctx := context.Background()
@@ -54,7 +54,7 @@ func TestEmptyDocumentReranking(t *testing.T) {
 
 func TestNoRetrieversPipeline(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	_, err := pipeline.NewPipeline().Build()
@@ -64,7 +64,7 @@ func TestNoRetrieversPipeline(t *testing.T) {
 
 func TestNilRetrieverInPipeline(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	_, err := pipeline.NewPipeline().
@@ -75,7 +75,7 @@ func TestNilRetrieverInPipeline(t *testing.T) {
 
 func TestNilRerankerInPipeline(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -92,7 +92,7 @@ func TestNilRerankerInPipeline(t *testing.T) {
 
 func TestLargeInputChunking(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	largeText := strings.Repeat("word ", 100000)
@@ -111,7 +111,7 @@ func TestLargeInputChunking(t *testing.T) {
 
 func TestMultiRetrieverAllFail(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Empty retrievers with no data should return an error
@@ -124,7 +124,7 @@ func TestMultiRetrieverAllFail(t *testing.T) {
 
 func TestChunkerEdgeCaseConfigs(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Zero chunk size should be corrected to default
@@ -154,7 +154,7 @@ func TestChunkerEdgeCaseConfigs(t *testing.T) {
 
 func TestMMRLambdaBoundaries(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	ctx := context.Background()

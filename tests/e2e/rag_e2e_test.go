@@ -17,7 +17,7 @@ import (
 
 func TestFullRAGPipelineE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Step 1: Chunk a large document
@@ -69,7 +69,7 @@ func TestFullRAGPipelineE2E(t *testing.T) {
 
 func TestMultiRetrieverE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr1 := hybrid.NewKeywordRetriever()
@@ -103,7 +103,7 @@ func TestMultiRetrieverE2E(t *testing.T) {
 
 func TestHybridSearchWithRerankerE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	sharedDocs := []retriever.Document{
@@ -147,7 +147,7 @@ func TestHybridSearchWithRerankerE2E(t *testing.T) {
 
 func TestPipelineWithCustomStageE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -187,7 +187,7 @@ func TestPipelineWithCustomStageE2E(t *testing.T) {
 
 func TestKeywordRetrieverRemoveE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -216,7 +216,7 @@ func TestKeywordRetrieverRemoveE2E(t *testing.T) {
 
 func TestChunkerPreservesContent(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	original := "The quick brown fox jumps over the lazy dog. " +

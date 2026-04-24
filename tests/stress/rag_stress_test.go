@@ -18,7 +18,7 @@ import (
 
 func TestConcurrentKeywordRetrieval(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -54,7 +54,7 @@ func TestConcurrentKeywordRetrieval(t *testing.T) {
 
 func TestConcurrentChunking(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	var wg sync.WaitGroup
@@ -81,7 +81,7 @@ func TestConcurrentChunking(t *testing.T) {
 
 func TestConcurrentMultiRetriever(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	retrievers := make([]retriever.Retriever, 5)
@@ -122,7 +122,7 @@ func TestConcurrentMultiRetriever(t *testing.T) {
 
 func TestConcurrentReranking(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	docs := make([]retriever.Document, 50)
@@ -165,7 +165,7 @@ func TestConcurrentReranking(t *testing.T) {
 
 func TestConcurrentHybridRetrieval(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	sharedDocs := make([]retriever.Document, 30)
@@ -211,7 +211,7 @@ func TestConcurrentHybridRetrieval(t *testing.T) {
 
 func TestConcurrentIndexAndRetrieve(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
