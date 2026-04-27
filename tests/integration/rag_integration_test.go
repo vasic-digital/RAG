@@ -16,7 +16,7 @@ import (
 
 func TestChunkerRerankerIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	text := "Machine learning is a subset of artificial intelligence. " +
@@ -53,7 +53,7 @@ func TestChunkerRerankerIntegration(t *testing.T) {
 
 func TestKeywordRetrieverRerankerIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -83,7 +83,7 @@ func TestKeywordRetrieverRerankerIntegration(t *testing.T) {
 
 func TestHybridRetrieverIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -115,7 +115,7 @@ func TestHybridRetrieverIntegration(t *testing.T) {
 
 func TestPipelineWithRetrieverAndRerankerIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	kr := hybrid.NewKeywordRetriever()
@@ -142,7 +142,7 @@ func TestPipelineWithRetrieverAndRerankerIntegration(t *testing.T) {
 
 func TestChunkerVariantsIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	text := "First paragraph with some content.\n\n" +
@@ -180,7 +180,7 @@ func TestChunkerVariantsIntegration(t *testing.T) {
 
 func TestFusionStrategiesIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	set1 := []retriever.Document{

@@ -1,5 +1,22 @@
 # CLAUDE.md
 
+
+## Definition of Done
+
+This module inherits HelixAgent's universal Definition of Done — see the root
+`CLAUDE.md` and `docs/development/definition-of-done.md`. In one line: **no
+task is done without pasted output from a real run of the real system in the
+same session as the change.** Coverage and green suites are not evidence.
+
+### Acceptance demo for this module
+
+```bash
+# Ingest a document → fixed/recursive chunking → hybrid retrieve (BM25+vector) → MMR rerank
+cd RAG && GOMAXPROCS=2 nice -n 19 go test -count=1 -race -v ./tests/integration/...
+```
+Expect: PASS; exercises chunker/retriever/reranker composed in a Pipeline per `RAG/README.md`. Hybrid retrieval uses RRF fusion by default; Linear fusion and MMR diversity require explicit options.
+
+
 ## Project Overview
 
 RAG is a generic, reusable Retrieval-Augmented Generation module written in Go. It provides core RAG primitives: document retrieval, chunking, reranking, pipeline composition, and hybrid search with fusion strategies.
@@ -33,3 +50,12 @@ go test ./pkg/hybrid/...        # Hybrid tests only
 - Interfaces: small, focused, accept interfaces return structs
 - Errors: always check, wrap with `fmt.Errorf("...: %w", err)`
 - Context: always pass `context.Context` as first parameter
+
+## Integration Seams
+
+| Direction | Sibling modules |
+|-----------|-----------------|
+| Upstream (this module imports) | none |
+| Downstream (these import this module) | HelixLLM |
+
+*Siblings* means other project-owned modules at the HelixAgent repo root. The root HelixAgent app and external systems are not listed here — the list above is intentionally scoped to module-to-module seams, because drift *between* sibling modules is where the "tests pass, product broken" class of bug most often lives. See root `CLAUDE.md` for the rules that keep these seams contract-tested.
