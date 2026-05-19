@@ -293,3 +293,80 @@ RAG connects to HelixAgent through the adapter at `internal/adapters/rag/`:
 - **Debate Context**: Retrieved documents are injected into debate turns as context, allowing debate participants to ground their arguments in factual sources.
 - **Memory Integration**: RAG chunking and retrieval work alongside the Memory and HelixMemory modules to provide both semantic search over documents and entity-graph-based memory recall.
 - **Embedding Pipeline**: The Embeddings module provides vector representations for the semantic retriever, supporting 6 embedding providers (OpenAI, Cohere, Voyage, Jina, Google, Bedrock).
+
+---
+
+## Anti-Bluff Guarantees (round-278 deep-doc — mirror of round-220 template)
+
+This module ships under the **HelixCode Constitution v2.3.0+** and inherits
+the parent-repo prime directive recorded in this submodule's `CLAUDE.md`:
+
+> Verbatim 2026-05-19 operator mandate: *"all existing tests and Challenges
+> do work in anti-bluff manner — they MUST confirm that all tested codebase
+> really works as expected! We had been in position that all tests do execute
+> with success and all Challenges as well, but in reality the most of the
+> features does not work and can't be used! This MUST NOT be the case and
+> execution of tests and Challenges MUST guarantee the quality, the
+> completition and full usability by end users of the product!"*
+
+### What runtime evidence this module produces
+
+Every test type in this submodule is paired with **positive runtime evidence**
+captured during execution — never a `assert.True(t, true)`, never a
+metadata-only PASS, never a grep-based "the symbol exists" claim:
+
+| Anti-bluff invariant (Article XI §11.9) | How this module satisfies it |
+|---|---|
+| **No simulation in production code** | `pkg/chunker`, `pkg/retriever`, `pkg/reranker`, `pkg/hybrid`, `pkg/pipeline` contain only real implementations. Anti-bluff scan: `grep -rn 'simulated\|for now\|TODO implement\|placeholder' pkg/ \| grep -v _test.go` returns empty. |
+| **No mocks beyond unit tests** (CONST-050(A)) | Unit tests (`*_test.go` in `pkg/`) use `testify` mocks/stubs only. Integration/E2E/security/stress (`tests/integration`, `tests/e2e`, `tests/security`, `tests/stress`) and Challenges exercise real chunker/retriever/reranker/hybrid/pipeline code paths with real text inputs and real document corpora. |
+| **End-to-end usability proof** | `challenges/runner/main.go` (added in round-278) builds a real pipeline (`NewPipeline().Retrieve(r).Rerank(rr).Build()`), feeds it 5-locale bilingual prompts loaded from `tests/fixtures/rag/payloads.json`, and asserts that every locale produces a non-empty ranked-document list with stable score ordering. |
+| **Paired-mutation gate** (§11.4 / CONST-035) | `challenges/rag_describe_challenge.sh` produces a clean exit 0 on a healthy tree and exit 99 when invoked with `--anti-bluff-mutate`, proving the gate distinguishes truth from corruption rather than always passing. |
+| **CONST-046 no-hardcoded-content** | Fixture-driven invocation: all user-facing query text loaded from `tests/fixtures/rag/payloads.json` rather than baked into Go source. Five locales (en, sr, ja, es, de) cover the Article XI §11.9 multilingual usability principle. |
+| **CONST-053 repository hygiene** | `.gitignore` covers binaries (`*.exe`, `*.test`), Go workspace (`go.work*`), coverage outputs (`coverage.out`, `coverage.html`), OS/IDE state (`.idea/`, `.vscode/`, `.DS_Store`), and run artefacts (`*.out`). Round-278 verifies no forbidden-class file is currently tracked. |
+| **CONST-060 fetch-before-edit** | The round-278 commit recorded a captured `git fetch --all --prune` + `HEAD..@{u}` log proving the submodule was synced before edits. |
+
+### How to verify these guarantees locally
+
+```bash
+# 1. Unit tests with race detector — all five packages green
+cd dependencies/vasic-digital/RAG && go test -race -count=1 ./...
+
+# 2. Anti-bluff smoke scan over production source
+grep -rn 'simulated\|for now\|TODO implement\|placeholder' pkg/ \
+  | grep -v _test.go && echo "BLUFF FOUND" || echo "clean"
+
+# 3. Round-278 Challenge: real RAG exerciser, 5-locale bilingual
+go run ./challenges/runner
+
+# 4. Paired-mutation gate (proves gate fails when fed a lie)
+bash challenges/rag_describe_challenge.sh                  # → exit 0
+bash challenges/rag_describe_challenge.sh --anti-bluff-mutate  # → exit 99
+
+# 5. Symbol → test ledger (round-278 deep-doc)
+cat docs/test-coverage.md
+```
+
+### What the round-278 enrichment added
+
+- `README.md` anti-bluff guarantees section (this block).
+- `docs/test-coverage.md` — CONST-050(B) symbol → test ledger covering every
+  exported type/function across `pkg/chunker`, `pkg/retriever`, `pkg/reranker`,
+  `pkg/hybrid`, `pkg/pipeline` with the unit / integration / Challenge that
+  exercises it.
+- `challenges/runner/main.go` — real RAG exerciser building an actual
+  `Pipeline` and processing 5-locale fixtures end-to-end with stable
+  ordering assertions.
+- `challenges/rag_describe_challenge.sh` — paired-mutation Challenge with
+  honest exit-99 on `--anti-bluff-mutate`.
+- `tests/fixtures/rag/payloads.json` — 5-locale bilingual query corpus.
+
+### What round-278 explicitly does NOT claim
+
+- This module does not ship its own vector store; the `pkg/hybrid`
+  `SemanticRetriever` is an interface that consumers fulfil with their
+  preferred backend (Qdrant, Pinecone, Milvus, etc.).
+- This module does not ship its own embedding provider; consumers wire
+  one in via the parent project's `Embeddings` module.
+- The Challenge runner exercises in-memory corpora — for full
+  production wire-evidence consult the parent `helix_qa` autonomous
+  session bank.

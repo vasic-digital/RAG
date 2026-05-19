@@ -1,0 +1,67 @@
+{
+  "schema_version": "round-278",
+  "purpose": "5-locale bilingual RAG fixtures for challenges/runner — CONST-046 no-hardcoded-content + Article XI §11.9 multilingual usability",
+  "locales": [
+    {
+      "code": "en",
+      "name": "English",
+      "query": "retrieval augmented generation pipeline composition",
+      "corpus": [
+        {"id": "en-1", "content": "RAG pipelines combine retrieval and generation stages. The pipeline builder chains a retriever, an optional reranker, and a formatter into a single executable unit."},
+        {"id": "en-2", "content": "Chunking strategies split documents into overlapping segments. FixedSize, Recursive, and Sentence chunkers each target different document shapes."},
+        {"id": "en-3", "content": "Hybrid retrieval fuses BM25 keyword search with semantic vector search using reciprocal rank fusion or weighted linear combination."},
+        {"id": "en-4", "content": "Maximal Marginal Relevance rerankers balance query relevance against result diversity, controlled by the Lambda parameter."},
+        {"id": "en-5", "content": "A cooking recipe for tomato pasta with garlic, olive oil, and fresh basil leaves."}
+      ],
+      "expect_top_id_in": ["en-1", "en-2", "en-3", "en-4"]
+    },
+    {
+      "code": "sr",
+      "name": "Serbian (Cyrillic)",
+      "query": "пајплајн ретривер ранкер чанкер хибридно RAG",
+      "corpus": [
+        {"id": "sr-1", "content": "RAG пајплајн комбинује фазе преузимања и генерисања. Билдер пајплајна повезује ретривер, опционални ранкер и форматер у један извршни блок."},
+        {"id": "sr-2", "content": "Стратегије сегментације деле документе на преклапајуће сегменте. ФиксноВеличински, Рекурзивни и Реченични чанкери покривају различите облике докумената."},
+        {"id": "sr-3", "content": "Хибридно преузимање фузионише BM25 претрагу по кључним речима са семантичком векторском претрагом. Користе се ретривер и ранкер."},
+        {"id": "sr-4", "content": "Рецепт за домаћу пицу са моцарелом и босиљком."}
+      ],
+      "expect_top_id_in": ["sr-1", "sr-2", "sr-3"]
+    },
+    {
+      "code": "ja",
+      "name": "Japanese (romaji+terms)",
+      "query": "RAG pipeline retriever reranker BM25",
+      "corpus": [
+        {"id": "ja-1", "content": "RAG pipeline は検索段階と生成段階を組み合わせます。Builder は retriever, reranker, formatter を単一の実行単位に連結します。"},
+        {"id": "ja-2", "content": "Chunking 戦略はドキュメントを重複する segments に分割します。FixedSize, Recursive, Sentence の3つのチャンカーが異なる形状に対応します。"},
+        {"id": "ja-3", "content": "Hybrid retriever は BM25 keyword 検索と semantic vector 検索を融合します。RRF または linear fusion が使用されます。"},
+        {"id": "ja-4", "content": "桜の花の下で抹茶を飲む春の伝統的な情景。"}
+      ],
+      "expect_top_id_in": ["ja-1", "ja-2", "ja-3"]
+    },
+    {
+      "code": "es",
+      "name": "Spanish",
+      "query": "composición de pipeline de recuperación y generación con reordenamiento",
+      "corpus": [
+        {"id": "es-1", "content": "Las tuberías RAG combinan etapas de recuperación y generación. El constructor de tubería encadena un recuperador, un reordenador opcional y un formateador en una unidad ejecutable."},
+        {"id": "es-2", "content": "Las estrategias de segmentación dividen documentos en segmentos superpuestos. Los chunkers de tamaño fijo, recursivo y por oraciones cubren distintas formas."},
+        {"id": "es-3", "content": "La recuperación híbrida fusiona búsqueda BM25 por palabras clave con búsqueda vectorial semántica."},
+        {"id": "es-4", "content": "Receta de tortilla española con patatas, cebolla y huevos."}
+      ],
+      "expect_top_id_in": ["es-1", "es-2", "es-3"]
+    },
+    {
+      "code": "de",
+      "name": "German",
+      "query": "Retrieval-Augmented-Generation Pipeline Komposition mit Neusortierung",
+      "corpus": [
+        {"id": "de-1", "content": "RAG-Pipelines kombinieren Abruf- und Generierungsstufen. Der Pipeline-Builder verkettet einen Retriever, einen optionalen Reranker und einen Formatter zu einer ausführbaren Einheit."},
+        {"id": "de-2", "content": "Chunking-Strategien teilen Dokumente in überlappende Segmente. FestGröße-, Rekursiv- und Satz-Chunker decken verschiedene Dokumentformen ab."},
+        {"id": "de-3", "content": "Hybride Abfrage fusioniert BM25-Stichwortsuche mit semantischer Vektorsuche."},
+        {"id": "de-4", "content": "Rezept für Schwarzwälder Kirschtorte mit Sahne, Kirschen und dunkler Schokolade."}
+      ],
+      "expect_top_id_in": ["de-1", "de-2", "de-3"]
+    }
+  ]
+}
