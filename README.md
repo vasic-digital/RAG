@@ -39,6 +39,7 @@ All components are designed around small, focused interfaces that can be impleme
 | `pkg/reranker` | Result reranking: `ScoreReranker`, `MMRReranker` (Maximal Marginal Relevance) |
 | `pkg/hybrid` | Hybrid retrieval: `KeywordRetriever` (BM25), `SemanticRetriever`, `HybridRetriever`, fusion strategies |
 | `pkg/pipeline` | Pipeline composition: fluent `Builder`, `Stage` interface, query context passing |
+| `pkg/grounding` | Deterministic answer grounding: `RetrievalGate` (absolute + margin), three-state `Verdict`, `ValidateCitations`, `ValidateVerbatim`, model-free `Extractive` adapter |
 
 ## API Reference
 
@@ -169,6 +170,64 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error)
 func WithQuery(ctx context.Context, query string) context.Context
 func QueryFromContext(ctx context.Context) (string, bool)
 ```
+
+## Grounding (`pkg/grounding`)
+
+Retrieval finds candidates; grounding decides whether they may become an
+answer. The design inverts the usual arrangement — a probabilistic generator
+is **gated by** deterministic verification rather than trusted because it was
+well prompted.
+
+| Layer | What it does |
+|---|---|
+| **L1** `RetrievalGate` | Refuses *before any model is called*. Two independent tests: absolute (`MinScore`) and relative (`MinMargin`). |
+| **L3** `ValidateCitations` | Every cited id must be one placed in this request — a set-membership test, no model, no heuristic. |
+| **L3** `ValidateVerbatim` | Extractive only: claim text must appear byte-for-byte in a document it cites. |
+
+### The margin test is the one that earns its keep
+
+The dangerous unanswerable question is not an off-topic one. It is a question
+whose *subject* the corpus discusses at length while the specific asked-for
+fact is absent: it scores **high** absolutely and **low** relatively, because
+many documents match the topic and none answers the question. A gate with only
+an absolute floor waves that straight through to the model, which then fills
+the gap.
+
+### Three states, never two
+
+`answered` / `declined` / `unavailable`. "The content does not support an
+answer" and "the machinery could not run" are different facts, and reporting
+the second as the first blames the corpus for a configuration or an outage.
+Uncalibrated thresholds (`MinScore <= 0`) therefore report `unavailable` with
+the cause named — never `declined`, and never `answered`.
+
+```go
+req := grounding.Request{
+    Question:  "What closes the valve?",
+    Documents: docs,          // []retriever.Document, straight from pkg/retriever
+    MinScore:  0.40,
+    MinMargin: 0.10,
+}
+
+ans, _ := grounding.NewExtractive(3).Answer(ctx, req)
+switch ans.Verdict {
+case grounding.VerdictAnswered:     // ans.Claims, each with checked citations
+case grounding.VerdictDeclined:     // ans.Reason + ans.Considered
+case grounding.VerdictUnavailable:  // not a statement about the content
+}
+```
+
+The `Extractive` adapter cannot fabricate **by construction**: its only string
+assignment copies `Document.Content`, and `ValidateVerbatim` re-checks the
+finished answer against the request before returning it. It needs no daemon,
+no socket and no model, so it is the only adapter that can answer on a fresh
+clone.
+
+**Honest boundary:** extractive answering returns the documents that answer
+the question, not prose weaving them together. Callers must present it as
+such. L2 (schema-constrained generation) and L4 (support verification) live
+outside this package; `Answer.CitationsVerified` is the hook for L4 and stays
+false until it runs.
 
 ## Usage Examples
 
