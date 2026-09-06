@@ -41,7 +41,12 @@ echo "[1/5] Binary present: PASS"
 assert_no_panic() {
     local label="$1" body="$2" pat
     for pat in "${USER_HOSTILE[@]}"; do
-        if printf '%s' "$body" | grep -qE "$pat"; then
+        # Bash's own regex operator, NOT `printf ... | grep -qE`. Under the
+        # `set -o pipefail` above, grep -q closing the pipe on a MATCH kills
+        # printf with SIGPIPE (141), pipefail promotes it, and the `if` then
+        # reads false — so this check FAILED OPEN on a body over ~4 KiB,
+        # missing the leak precisely because it was there.
+        if [[ $body =~ $pat ]]; then
             echo "  FAIL: $label leaked: $pat"
             return 1
         fi

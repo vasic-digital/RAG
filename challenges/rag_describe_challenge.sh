@@ -113,7 +113,16 @@ if [[ $MUTATE -eq 1 ]]; then
     fi
 fi
 
-if [[ $RUNNER_EXIT -eq 0 ]] && echo "$RUNNER_OUT" | grep -q "=== PASS"; then
+# Matched with bash's own pattern operator, NOT `echo | grep -q`. Under the
+# `set -o pipefail` above, grep -q exits the instant it matches, echo is killed
+# by SIGPIPE (141), and pipefail promotes that to the pipeline's status — so
+# this would take the `fail "runner did not produce PASS marker"` branch
+# BECAUSE the marker was found. Measured on this host with the marker present
+# in every iteration: 0/200 non-zero at a 4 KiB body, 200/200 at 16 KiB, and
+# 3000/3000 at 256 KiB. Today this runner emits 783 bytes with the marker at
+# offset 733, so the trap was latent here rather than firing; it goes live the
+# moment the runner gets chattier or 2>&1 picks up a stack trace.
+if [[ $RUNNER_EXIT -eq 0 ]] && [[ $RUNNER_OUT == *"=== PASS"* ]]; then
     LOCALES_DONE=$(echo "$RUNNER_OUT" | grep -c "^    PASS locale=")
     if [[ "$LOCALES_DONE" -ge 5 ]]; then
         pass "runner exit=0, ${LOCALES_DONE} locales exercised end-to-end"
