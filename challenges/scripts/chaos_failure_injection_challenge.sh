@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # chaos_failure_injection_challenge.sh — anti-bluff Chaos Challenge
 # for RAG per CONST-035 + CONST-050(B). Cascade per CONST-051(A).
+#
+# THREE-VALUED, and a 2 is never a pass:
+#   0 = the target was reached and every chaos invariant held
+#   1 = a real finding — the target degraded under injected failure
+#   2 = COULD NOT DETERMINE — no target configured, or the target was
+#       unreachable. Nothing was exercised, so nothing is asserted.
+#
+# This used to print "PASSED (SKIP-OK)" and exit 0 when the target could not
+# be reached. A stopped service or a DNS blip then read, BY EXIT CODE, as a
+# genuine pass of a chaos challenge that never sent a single packet.
 
 set -uo pipefail
 HEALTH_URL="${RAG_HEALTH_URL:-}"
@@ -13,15 +23,17 @@ echo "=== RAG Chaos Failure-Injection Challenge ==="
 echo "  url=$HEALTH_URL host=${CHAOS_HOST}:${CHAOS_PORT}"
 
 if [[ -z "$HEALTH_URL" ]] || [[ -z "$CHAOS_PORT" ]]; then
-    echo "[1/6] SKIP: RAG_HEALTH_URL/_PORT unset — SKIP-OK: #env-no-target"
-    echo "=== RAG Chaos Challenge: PASSED (SKIP-OK) ==="
-    exit 0
+    echo "[1/6] NO TARGET: RAG_HEALTH_URL/RAG_CHAOS_PORT unset — nothing exercised"
+    echo "=== RAG Chaos Challenge: UNDETERMINED (no target configured) ==="
+    echo "  a 2 is never a pass; set RAG_HEALTH_URL and RAG_CHAOS_PORT to obtain a verdict"
+    exit 2
 fi
 pre=$(curl -sS --max-time 5 -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null) || pre="000"
 if [[ "$pre" != "200" ]]; then
-    echo "[1/6] SKIP: unreachable (HTTP $pre) — SKIP-OK: #env-target-down"
-    echo "=== RAG Chaos Challenge: PASSED (SKIP-OK) ==="
-    exit 0
+    echo "[1/6] UNREACHABLE: pre-flight HTTP $pre — nothing exercised"
+    echo "=== RAG Chaos Challenge: UNDETERMINED (target unreachable) ==="
+    echo "  a 2 is never a pass; this says nothing about the target's chaos resilience"
+    exit 2
 fi
 echo "[1/6] Pre-chaos: PASS"
 

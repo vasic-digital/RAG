@@ -92,19 +92,33 @@ else
 fi
 
 # Test 9: Hybrid search support
+# The pattern here was "Hybrid\|hybrid\|MultiRetriever" against pkg/hybrid/.
+# The lowercase alternative matches the PACKAGE CLAUSE of every file in that
+# directory, so a file whose entire content is `package hybrid` satisfied it.
+# Measured 2026-09-06: that exact one-line file passes the old assertion. It
+# could not fail while the directory existed, so it asserted nothing.
+# Now: a real fusion strategy and a real hybrid retriever type must exist.
 echo "Test: Hybrid search support exists"
-if grep -rq "Hybrid\|hybrid\|MultiRetriever" "${MODULE_DIR}/pkg/hybrid/"; then
-    pass "Hybrid search support found in pkg/hybrid"
+if grep -rqE "^type +HybridRetriever +struct" "${MODULE_DIR}/pkg/hybrid/" \
+   && grep -rqE "^type +FusionStrategy +interface" "${MODULE_DIR}/pkg/hybrid/"; then
+    pass "Hybrid search support found in pkg/hybrid (HybridRetriever + FusionStrategy)"
 else
-    fail "No hybrid search support found"
+    fail "pkg/hybrid lacks a HybridRetriever struct and/or a FusionStrategy interface"
 fi
 
 # Test 10: Search/Query capability
+# The pattern here was "Search\|Query\|Retrieve" against pkg/retriever/. The
+# identifier `Retriever` — whose existence Test 4 already asserts — contains
+# the substring "Retrieve", so Test 10 could not fail whenever Test 4 passed.
+# Measured 2026-09-06: a file containing only `package retriever` plus
+# `type Retriever interface{}` satisfied the old assertion.
+# Now: the interface must actually declare a Retrieve method with a context
+# and a query, which is the capability the test claims to check.
 echo "Test: Search/Query capability exists"
-if grep -rq "Search\|Query\|Retrieve" "${MODULE_DIR}/pkg/retriever/"; then
-    pass "Search/Query capability found in pkg/retriever"
+if grep -rqE "Retrieve\(ctx context\.Context, query string" "${MODULE_DIR}/pkg/retriever/"; then
+    pass "Search/Query capability found in pkg/retriever (Retrieve(ctx, query, ...))"
 else
-    fail "No Search/Query capability found"
+    fail "pkg/retriever declares no Retrieve(ctx context.Context, query string, ...) method"
 fi
 
 echo ""

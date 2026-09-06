@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # scaling_horizontal_challenge.sh — anti-bluff Scaling Challenge for
 # RAG per CONST-035 + CONST-050(B). Cascade per CONST-051(A).
+#
+# THREE-VALUED, and a 2 is never a pass:
+#   0 = >= 2 replicas were reached and every scaling invariant held
+#   1 = a real finding — a replica diverged, degraded, or died
+#   2 = COULD NOT DETERMINE — no replica list configured, or fewer than 2
+#       replicas answered. Horizontal scaling was NOT exercised.
+#
+# This used to print "PASSED (SKIP-OK)" and exit 0 in both those cases. A
+# fleet with every replica down therefore reported, by exit code, a passing
+# horizontal-scaling challenge.
 
 set -uo pipefail
 REPLICAS="${RAG_SCALING_REPLICA_URLS:-}"
@@ -12,9 +22,10 @@ echo "=== RAG Scaling Challenge ==="
 echo "  replicas=$REPLICAS reqs=$REQS conc=$CONC pass≥${MIN_PCT}%"
 
 if [[ -z "$REPLICAS" ]]; then
-    echo "[1/6] SKIP: RAG_SCALING_REPLICA_URLS unset — SKIP-OK: #env-single-replica"
-    echo "=== RAG Scaling Challenge: PASSED (SKIP-OK) ==="
-    exit 0
+    echo "[1/6] NO TARGET: RAG_SCALING_REPLICA_URLS unset — no replica probed"
+    echo "=== RAG Scaling Challenge: UNDETERMINED (no replica list configured) ==="
+    echo "  a 2 is never a pass; set RAG_SCALING_REPLICA_URLS to obtain a verdict"
+    exit 2
 fi
 
 IFS=',' read -r -a URLS <<< "$REPLICAS"
@@ -25,9 +36,10 @@ for u in "${URLS[@]}"; do
     [[ "$c" == "200" ]] && REACH+=("$u") && echo "  reachable: $u"
 done
 if [[ ${#REACH[@]} -lt 2 ]]; then
-    echo "[1/6] SKIP: ${#REACH[@]} reachable — SKIP-OK: #env-single-replica"
-    echo "=== RAG Scaling Challenge: PASSED (SKIP-OK) ==="
-    exit 0
+    echo "[1/6] INSUFFICIENT TOPOLOGY: ${#REACH[@]} of ${#URLS[@]} replica(s) reachable — scaling not exercised"
+    echo "=== RAG Scaling Challenge: UNDETERMINED (fewer than 2 replicas answered) ==="
+    echo "  a 2 is never a pass; this says nothing about horizontal scaling"
+    exit 2
 fi
 echo "[1/6] Topology: ${#REACH[@]} replicas — PASS"
 
