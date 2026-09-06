@@ -63,8 +63,15 @@ func (r *ScoreReranker) Rerank(
 	result := make([]retriever.Document, len(docs))
 	copy(result, docs)
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Score > result[j].Score
+	// TOTAL order: score descending, exactly-equal scores broken by document
+	// ID. sort.Slice is not stable, so without the tiebreak the order among
+	// equal scores depended on the incoming permutation. Scores are not
+	// modified.
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].Score != result[j].Score {
+			return result[i].Score > result[j].Score
+		}
+		return result[i].ID < result[j].ID
 	})
 
 	if r.config.TopK > 0 && len(result) > r.config.TopK {
@@ -137,18 +144,31 @@ func (r *MMRReranker) Rerank(
 		}
 	}
 
-	// Greedily select documents using MMR
+	// Greedily select documents using MMR.
+	//
+	// The candidate set is a SLICE scanned in ascending index order, not a
+	// map. Go randomises map iteration, so scanning `map[int]bool` made the
+	// winner of an MMR tie depend on iteration order — and MMR ties are
+	// routine (identical or near-identical documents score identically at
+	// every step). The scan order below is input-derived and fixed, so an
+	// exact tie resolves to the lowest remaining index, i.e. to the caller's
+	// own document order. MMR scores themselves are unchanged.
 	selected := make([]int, 0, topK)
-	unselected := make(map[int]bool, n)
+	unselected := make([]bool, n)
 	for i := 0; i < n; i++ {
 		unselected[i] = true
 	}
+	remaining := n
 
-	for len(selected) < topK && len(unselected) > 0 {
+	for len(selected) < topK && remaining > 0 {
 		bestIdx := -1
 		bestScore := -math.MaxFloat64
 
-		for idx := range unselected {
+		for idx := 0; idx < n; idx++ {
+			if !unselected[idx] {
+				continue
+			}
+
 			// Relevance component
 			relevance := querySims[idx]
 
@@ -164,6 +184,7 @@ func (r *MMRReranker) Rerank(
 			mmrScore := r.config.Lambda*relevance -
 				(1-r.config.Lambda)*maxSimToSelected
 
+			// Strict > keeps the FIRST (lowest-index) candidate on a tie.
 			if mmrScore > bestScore {
 				bestScore = mmrScore
 				bestIdx = idx
@@ -172,7 +193,8 @@ func (r *MMRReranker) Rerank(
 
 		if bestIdx >= 0 {
 			selected = append(selected, bestIdx)
-			delete(unselected, bestIdx)
+			unselected[bestIdx] = false
+			remaining--
 		}
 	}
 

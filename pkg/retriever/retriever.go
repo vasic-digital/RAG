@@ -121,16 +121,31 @@ func (m *MultiRetriever) Retrieve(
 		return nil, fmt.Errorf("all retrievers failed: %v", errs)
 	}
 
-	// Convert to sorted slice
-	docs := make([]Document, 0, len(docMap))
-	for _, doc := range docMap {
+	// Convert to sorted slice. Collect in sorted-ID order rather than by
+	// ranging docMap: Go randomises map iteration, so a map range would seed
+	// the sort with an arbitrary permutation and no sort could undo it.
+	ids := make([]string, 0, len(docMap))
+	for id := range docMap {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	docs := make([]Document, 0, len(ids))
+	for _, id := range ids {
+		doc := docMap[id]
 		if doc.Score >= opts.MinScore {
 			docs = append(docs, doc)
 		}
 	}
 
-	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].Score > docs[j].Score
+	// TOTAL order: score descending, exactly-equal scores broken by ID.
+	// Scores are not modified; only the order among equal scores becomes
+	// defined instead of arbitrary.
+	sort.SliceStable(docs, func(i, j int) bool {
+		if docs[i].Score != docs[j].Score {
+			return docs[i].Score > docs[j].Score
+		}
+		return docs[i].ID < docs[j].ID
 	})
 
 	if opts.TopK > 0 && len(docs) > opts.TopK {

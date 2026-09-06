@@ -50,16 +50,8 @@ func (r *RRFStrategy) Fuse(
 		}
 	}
 
-	docs := make([]retriever.Document, 0, len(scoreMap))
-	for id, score := range scoreMap {
-		doc := docMap[id]
-		doc.Score = score
-		docs = append(docs, doc)
-	}
-
-	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].Score > docs[j].Score
-	})
+	docs := collectByID(scoreMap, docMap)
+	sortByScoreThenID(docs)
 
 	return docs
 }
@@ -110,16 +102,8 @@ func (l *LinearStrategy) Fuse(
 		}
 	}
 
-	docs := make([]retriever.Document, 0, len(scoreMap))
-	for id, score := range scoreMap {
-		doc := docMap[id]
-		doc.Score = score
-		docs = append(docs, doc)
-	}
-
-	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].Score > docs[j].Score
-	})
+	docs := collectByID(scoreMap, docMap)
+	sortByScoreThenID(docs)
 
 	return docs
 }
@@ -229,8 +213,18 @@ func (r *KeywordRetriever) Retrieve(
 		}
 	}
 
-	docs := make([]retriever.Document, 0, len(scores))
-	for docID, score := range scores {
+	// Collect in sorted-ID order, never in map-range order: Go randomises
+	// map iteration, so building the slice by ranging `scores` would hand
+	// the sort an arbitrary input permutation on every call.
+	ids := make([]string, 0, len(scores))
+	for docID := range scores {
+		ids = append(ids, docID)
+	}
+	sort.Strings(ids)
+
+	docs := make([]retriever.Document, 0, len(ids))
+	for _, docID := range ids {
+		score := scores[docID]
 		if score < opts.MinScore {
 			continue
 		}
@@ -239,9 +233,7 @@ func (r *KeywordRetriever) Retrieve(
 		docs = append(docs, doc)
 	}
 
-	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].Score > docs[j].Score
-	})
+	sortByScoreThenID(docs)
 
 	topK := opts.TopK
 	if topK <= 0 {
@@ -416,6 +408,46 @@ func (h *HybridRetriever) Retrieve(
 	}
 
 	return fused, nil
+}
+
+// sortByScoreThenID orders documents by score descending under a TOTAL order:
+// exactly-equal scores are broken by document ID ascending. Score comparison
+// is unchanged, so ranking semantics are untouched; only the order among
+// EXACTLY equal scores becomes defined instead of arbitrary.
+//
+// sort.Slice is not stable and reciprocal-rank fusion produces ties
+// constantly (1/(k+rank+1) collides whenever two documents hold the same
+// rank in different legs), so without the tiebreak the surviving documents
+// after a TopK truncation changed between byte-identical calls.
+func sortByScoreThenID(docs []retriever.Document) {
+	sort.SliceStable(docs, func(i, j int) bool {
+		if docs[i].Score != docs[j].Score {
+			return docs[i].Score > docs[j].Score
+		}
+		return docs[i].ID < docs[j].ID
+	})
+}
+
+// collectByID materialises a score map into a slice in sorted-ID order.
+// Ranging the map directly would seed the sort with a randomised input
+// permutation, which no sort — stable or not — can undo.
+func collectByID(
+	scoreMap map[string]float64,
+	docMap map[string]retriever.Document,
+) []retriever.Document {
+	ids := make([]string, 0, len(scoreMap))
+	for id := range scoreMap {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	docs := make([]retriever.Document, 0, len(ids))
+	for _, id := range ids {
+		doc := docMap[id]
+		doc.Score = scoreMap[id]
+		docs = append(docs, doc)
+	}
+	return docs
 }
 
 // tokenize splits text into lowercase word tokens for BM25.
