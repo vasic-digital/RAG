@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // TestHierarchicalChunkerProducesChildrenWithParentContext is the core T031
@@ -153,4 +154,117 @@ func TestHierarchicalChunkerEmptyTextReturnsNoChunks(t *testing.T) {
 // than every caller's build.
 func TestHierarchicalChunkerImplementsChunkerInterface(t *testing.T) {
 	var _ Chunker = NewHierarchicalChunker(DefaultHierarchicalConfig())
+}
+
+// TestNewHierarchicalChunker_DefaultValues matches the normalization-test
+// convention every sibling chunker in this package already has
+// (TestNewFixedSizeChunker_DefaultValues, TestNewRecursiveChunker_
+// DefaultValues) — a real parity gap an independent review caught: none of
+// this file's other tests exercised NewHierarchicalChunker's own four
+// normalization branches at all.
+func TestNewHierarchicalChunker_DefaultValues(t *testing.T) {
+	tests := []struct {
+		name                    string
+		config                  HierarchicalConfig
+		expectedChunkSize       int
+		expectedOverlap         int
+		expectedParentChunkSize int
+	}{
+		{
+			name:                    "zero chunk size defaults to 1000",
+			config:                  HierarchicalConfig{Config: Config{ChunkSize: 0, Overlap: 100}},
+			expectedChunkSize:       1000,
+			expectedOverlap:         100,
+			expectedParentChunkSize: 4000,
+		},
+		{
+			name:                    "negative chunk size defaults to 1000",
+			config:                  HierarchicalConfig{Config: Config{ChunkSize: -5, Overlap: 50}},
+			expectedChunkSize:       1000,
+			expectedOverlap:         50,
+			expectedParentChunkSize: 4000,
+		},
+		{
+			name:                    "negative overlap defaults to 0",
+			config:                  HierarchicalConfig{Config: Config{ChunkSize: 100, Overlap: -10}},
+			expectedChunkSize:       100,
+			expectedOverlap:         0,
+			expectedParentChunkSize: 400,
+		},
+		{
+			name:                    "overlap equal to chunk size falls back to chunk size / 4",
+			config:                  HierarchicalConfig{Config: Config{ChunkSize: 100, Overlap: 100}},
+			expectedChunkSize:       100,
+			expectedOverlap:         25,
+			expectedParentChunkSize: 400,
+		},
+		{
+			name: "ParentChunkSize not larger than ChunkSize is raised to 4x",
+			config: HierarchicalConfig{
+				Config:          Config{ChunkSize: 100, Overlap: 10},
+				ParentChunkSize: 50,
+			},
+			expectedChunkSize:       100,
+			expectedOverlap:         10,
+			expectedParentChunkSize: 400,
+		},
+		{
+			name: "ParentChunkSize already larger than ChunkSize is left unchanged",
+			config: HierarchicalConfig{
+				Config:          Config{ChunkSize: 100, Overlap: 10},
+				ParentChunkSize: 900,
+			},
+			expectedChunkSize:       100,
+			expectedOverlap:         10,
+			expectedParentChunkSize: 900,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewHierarchicalChunker(tt.config)
+			if c.config.ChunkSize != tt.expectedChunkSize {
+				t.Errorf("ChunkSize = %d, want %d", c.config.ChunkSize, tt.expectedChunkSize)
+			}
+			if c.config.Overlap != tt.expectedOverlap {
+				t.Errorf("Overlap = %d, want %d", c.config.Overlap, tt.expectedOverlap)
+			}
+			if c.config.ParentChunkSize != tt.expectedParentChunkSize {
+				t.Errorf("ParentChunkSize = %d, want %d", c.config.ParentChunkSize, tt.expectedParentChunkSize)
+			}
+		})
+	}
+}
+
+// TestHierarchicalChunkerNeverSplitsAMultiByteRune is the real finding an
+// independent review caught: byte-slicing at a raw Config.ChunkSize offset
+// can land inside a multi-byte UTF-8 rune, corrupting BOTH chunks straddling
+// that cut. Measured directly before the fix existed: a repeated Cyrillic
+// fixture produced invalid UTF-8 in the majority of its chunks. Every
+// returned Chunk.Content, at every parent/child boundary, must be valid
+// UTF-8 — checked exhaustively here, not spot-checked.
+func TestHierarchicalChunkerNeverSplitsAMultiByteRune(t *testing.T) {
+	// Each word is a 2-byte-per-rune Cyrillic word ("privet", repeated),
+	// chosen so that small, deliberately-misaligning ChunkSize/Overlap
+	// values are very likely to land mid-rune if nothing guards against it.
+	word := "привет "
+	text := strings.Repeat(word, 60) // well over both parent and child size
+	cfg := HierarchicalConfig{
+		Config:          Config{ChunkSize: 50, Overlap: 10},
+		ParentChunkSize: 180,
+	}
+	c := NewHierarchicalChunker(cfg)
+	chunks := c.Chunk(text)
+	if len(chunks) < 4 {
+		t.Fatalf("want several chunks to exercise multiple boundaries, got %d", len(chunks))
+	}
+	for i, ch := range chunks {
+		if !utf8.ValidString(ch.Content) {
+			t.Fatalf("chunk %d is NOT valid UTF-8 (a multi-byte rune was split): %q", i, ch.Content)
+		}
+		parentContent, _ := ch.Metadata["parent_content"].(string)
+		if !utf8.ValidString(parentContent) {
+			t.Fatalf("chunk %d's parent_content is NOT valid UTF-8: %q", i, parentContent)
+		}
+	}
 }

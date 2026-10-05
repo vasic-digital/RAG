@@ -1,5 +1,7 @@
 package chunker
 
+import "unicode/utf8"
+
 // HierarchicalConfig configures HierarchicalChunker. The embedded Config's
 // ChunkSize/Overlap/Separators govern the CHILD level — the chunks actually
 // returned and embedded. ParentChunkSize governs the larger PARENT section
@@ -121,29 +123,65 @@ type childSpan struct {
 // sliding forward by (ChunkSize - Overlap) each step — the same step
 // FixedSizeChunker uses, which for a contiguous byte window is exactly
 // equivalent to seeding each step with the previous child's trailing
-// Overlap bytes (getOverlapText's own definition); using the step directly
-// instead of calling getOverlapText and re-deriving a start position from it
-// keeps every offset exact with no extra string search.
+// Overlap bytes (getOverlapText's own definition).
+//
+// EVERY start AND end IS SNAPPED TO A RUNE BOUNDARY (runeBoundaryAtOrBefore).
+// ChunkSize/Overlap are byte counts, and a raw text[start:end] slice at an
+// arbitrary byte offset can fall inside a multi-byte UTF-8 rune, producing
+// invalid UTF-8 content in BOTH chunks straddling that cut — measured
+// directly: a non-ASCII fixture produced mid-rune garbage bytes in the
+// majority of its chunks before this snapping existed. Both start and end
+// need the adjustment, not just end: start in a later iteration is derived
+// from an earlier end, so an unadjusted end would carry the misalignment
+// forward into every subsequent child. The snap always rounds DOWN (never
+// splits a rune, and never widens past the configured size), so Content is
+// never longer than ChunkSize; it can be up to (rune width - 1) bytes
+// shorter at a boundary that landed mid-rune, which is the only size
+// deviation this introduces.
 func (c *HierarchicalChunker) chunkChildren(parentText string) []childSpan {
 	if len(parentText) <= c.config.ChunkSize {
 		return []childSpan{{content: parentText, start: 0, end: len(parentText)}}
 	}
 
-	step := c.config.ChunkSize - c.config.Overlap
-	if step <= 0 {
-		step = 1
-	}
+	overlap := c.config.Overlap
 
 	var out []childSpan
-	for start := 0; start < len(parentText); start += step {
+	start := 0
+	for start < len(parentText) {
 		end := start + c.config.ChunkSize
-		if end > len(parentText) {
+		if end >= len(parentText) {
 			end = len(parentText)
+		} else {
+			end = runeBoundaryAtOrBefore(parentText, end)
 		}
 		out = append(out, childSpan{content: parentText[start:end], start: start, end: end})
 		if end == len(parentText) {
 			break
 		}
+
+		next := runeBoundaryAtOrBefore(parentText, end-overlap)
+		if next <= start {
+			// The rune-boundary snap (or a tiny ChunkSize relative to
+			// Overlap) left no forward progress. Advance by exactly one
+			// whole rune instead of looping forever at the same start.
+			_, size := utf8.DecodeRuneInString(parentText[start:])
+			next = start + size
+		}
+		start = next
 	}
 	return out
+}
+
+// runeBoundaryAtOrBefore returns the largest index <= pos that sits on a
+// UTF-8 rune boundary in s — i.e. never inside the continuation bytes of a
+// multi-byte rune. pos == len(s) (one past the last byte) is itself always
+// a valid boundary and is returned unchanged.
+func runeBoundaryAtOrBefore(s string, pos int) int {
+	if pos >= len(s) {
+		return len(s)
+	}
+	for pos > 0 && !utf8.RuneStart(s[pos]) {
+		pos--
+	}
+	return pos
 }
