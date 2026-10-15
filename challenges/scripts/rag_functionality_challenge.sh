@@ -6,10 +6,12 @@
 #   bash challenges/scripts/rag_functionality_challenge.sh --prove-failure   # §1.1 paired proof
 #
 # THREE-VALUED, and a 2 is never a pass:
-#   0 = every assertion held, and the number of assertions that actually ran
-#       reached the recorded floor (FUNC_FLOOR)
-#   1 = a real finding — an assertion failed, or FEWER assertions ran than
-#       the floor (an assertion lost to an edit or an early exit)
+#   0 = every assertion held, and exactly FUNC_FLOOR assertions ran
+#   1 = a real finding — an assertion failed, or the number of assertions
+#       that ran differs from FUNC_FLOOR (fewer: an assertion lost to an edit
+#       or an early exit — the count is taken by an EXIT trap, so `exit 0`
+#       mid-file cannot skip it; more: an assertion added without raising
+#       FUNC_FLOOR)
 #   2 = COULD NOT DETERMINE — part of the source could not be read (grep
 #       could not open a file or directory), or an unknown argument.
 #       Precedence: 1 outranks 2 outranks 0.
@@ -19,14 +21,17 @@
 # call, which is what is counted; a run that reaches the end having made
 # fewer — an assertion deleted or commented out, a block skipped — is rc 1,
 # never a quiet pass over a smaller check. Adding an assertion means raising
-# FUNC_FLOOR in the same commit; there is no environment override.
+# FUNC_FLOOR in the same commit (the count is exact, see finish()); there is
+# no environment override. This file checks that the core types are DECLARED
+# (structure); behaviour is exercised by challenges/rag_describe_challenge.sh.
 #
 # --prove-failure (§1.1 paired proof, VSC-371): copies this module (no .git)
 # into throw-away trees under $TMPDIR, plants a defect in each copy and runs
 # THIS file there — a clean copy must exit 0; a renamed Chunker interface, a
-# changed Retrieve signature and a copy of this file with one assertion
-# deleted must exit 1; an unreadable package directory and an unknown
-# argument must exit 2. Exits 0 only when every case holds, 1 when any does
+# changed Retrieve signature, a copy of this file with one assertion deleted,
+# one with an `exit 0` planted mid-file, one with an extra assertion and a
+# pkg/pipeline reduced to a comment saying "stage" must exit 1; an unreadable
+# package directory and an unknown argument must exit 2. Exits 0 only when every case holds, 1 when any does
 # not, 2 when the proof itself cannot run (e.g. as root, where chmod 000 does
 # not deny a read).
 
@@ -112,6 +117,28 @@ prove_failure() {
     fi
     expect "U2 unknown argument" 2 "$c0" "unknown argument" -- --no-such-flag
 
+
+    # M4: a planted `exit 0` after assertion T05 — an early exit is not a pass.
+    d=$(mkcopy m4) || { cannot "could not copy the module"; return 2; }
+    if grep -q '^verdict T05 ' "$d/$self_rel" && sed -i '/^verdict T05 /a exit 0' "$d/$self_rel"; then
+        expect "M4 a planted exit 0 after T05 (early exit)" 1 "$d" "below the floor"
+    else
+        P_UNDET=$((P_UNDET + 1)); echo "  UNDET M4: could not plant exit 0 in the copy of this file"
+    fi
+
+    # M5: one assertion more than FUNC_FLOOR records — the floor is an exact count.
+    d=$(mkcopy m5) || { cannot "could not copy the module"; return 2; }
+    if grep -q '^verdict T10 ' "$d/$self_rel" && sed -i '/^verdict T10 /p' "$d/$self_rel"; then
+        expect "M5 an extra assertion without raising FUNC_FLOOR" 1 "$d" "raise FUNC_FLOOR"
+    else
+        P_UNDET=$((P_UNDET + 1)); echo "  UNDET M5: could not duplicate assertion T10 in the copy of this file"
+    fi
+
+    # M6: pkg/pipeline reduced to a package clause and a comment saying "stage".
+    d=$(mkcopy m6) || { cannot "could not copy the module"; return 2; }
+    find "$d/pkg/pipeline" -name '*.go' ! -name '*_test.go' -delete
+    printf 'package pipeline\n\n// stage\n' > "$d/pkg/pipeline/doc.go"
+    expect "M6 pkg/pipeline holds only a comment saying 'stage'" 1 "$d" "pkg/pipeline lacks"
     echo "prove-failure: ${P_PASS} passed, ${P_FAIL} failed, ${P_UNDET} undetermined"
     [ "$P_FAIL" -gt 0 ] && return 1
     [ "$P_UNDET" -gt 0 ] && return 2
@@ -138,6 +165,38 @@ EXECUTED=0
 pass()  { PASS=$((PASS+1));  TOTAL=$((TOTAL+1)); echo "  PASS: $1"; }
 fail()  { FAIL=$((FAIL+1));  TOTAL=$((TOTAL+1)); echo "  FAIL: $1"; }
 undet() { UNDET=$((UNDET+1)); TOTAL=$((TOTAL+1)); echo "  UNDETERMINED: $1"; }
+
+# SINGLE EXIT PATH (VSC-371 review): the floor and the verdict are evaluated
+# from this EXIT trap, not at the end of the file, so an `exit 0` anywhere
+# below, an unbound variable or any other early exit still reaches the count
+# — and an early exit is, by construction, a run that made fewer assertions
+# than FUNC_FLOOR (rc 1). The floor is an EXACT count: an assertion added
+# without raising FUNC_FLOOR is rc 1 too, so the recorded number cannot drift
+# from the file.
+finish() {
+    trap - EXIT
+    echo ""
+    echo "Test: Every assertion ran (exactly ${FUNC_FLOOR})"
+    if [ "$EXECUTED" -lt "$FUNC_FLOOR" ]; then
+        fail "executed ${EXECUTED} assertion(s), below the floor ${FUNC_FLOOR} — a partial run (an early exit, a deleted assertion) is not a pass"
+    elif [ "$EXECUTED" -gt "$FUNC_FLOOR" ]; then
+        fail "executed ${EXECUTED} assertion(s), more than FUNC_FLOOR=${FUNC_FLOOR} records — raise FUNC_FLOOR in the commit that adds an assertion"
+    else
+        pass "executed ${EXECUTED} assertion(s) (exactly FUNC_FLOOR=${FUNC_FLOOR})"
+    fi
+    echo ""
+    echo "=== Results: ${PASS}/${TOTAL} passed, ${FAIL} failed, ${UNDET} undetermined ==="
+    if [ "${FAIL}" -gt 0 ]; then
+        echo "=== VERDICT: FAIL (real finding) ==="
+        exit 1
+    elif [ "${UNDET}" -gt 0 ]; then
+        echo "=== VERDICT: UNDETERMINED — NOT a pass ==="
+        exit 2
+    fi
+    echo "=== VERDICT: PASS ==="
+    exit 0
+}
+trap finish EXIT
 
 # probe <path> <grep flags and -e pattern...>
 #   0 match, 1 no match (a missing path is "no match": a real finding),
@@ -215,9 +274,14 @@ fi
 verdict T07 "$rc" "$msg" "No chunker implementations found"
 
 # Test 8: Pipeline support exists
+# The pattern here was "Pipeline\|Stage\|stage" against pkg/pipeline/: a
+# one-line comment containing the word "stage" satisfied it (VSC-371 review).
+# Now: the Pipeline type and the Stage interface it composes must exist.
 echo "Test: Pipeline support exists"
-probe "${MODULE_DIR}/pkg/pipeline/" -rq -e "Pipeline\|Stage\|stage"; rc=$?
-verdict T08 "$rc" "Pipeline support found in pkg/pipeline" "No pipeline support found"
+probe "${MODULE_DIR}/pkg/pipeline/" -rqE -e "^type +Pipeline +struct"; r1=$?
+probe "${MODULE_DIR}/pkg/pipeline/" -rqE -e "^type +Stage +interface"; r2=$?
+worst "$r1" "$r2"; rc=$?
+verdict T08 "$rc" "Pipeline support found in pkg/pipeline (Pipeline struct + Stage interface)" "pkg/pipeline lacks a Pipeline struct and/or a Stage interface"
 
 # Test 9: Hybrid search support
 # The pattern here was "Hybrid\|hybrid\|MultiRetriever" against pkg/hybrid/.
@@ -244,23 +308,4 @@ echo "Test: Search/Query capability exists"
 probe "${MODULE_DIR}/pkg/retriever/" -rqE -e "Retrieve\(ctx context\.Context, query string"; rc=$?
 verdict T10 "$rc" "Search/Query capability found in pkg/retriever (Retrieve(ctx, query, ...))" "pkg/retriever declares no Retrieve(ctx context.Context, query string, ...) method"
 
-# EXECUTED-COUNT FLOOR (VSC-371): an assertion that did not run is not an
-# assertion that passed.
-echo "Test: Every assertion ran (floor ${FUNC_FLOOR})"
-if [ "$EXECUTED" -lt "$FUNC_FLOOR" ]; then
-    fail "executed ${EXECUTED} assertion(s), below the floor ${FUNC_FLOOR} — a partial run is not a pass"
-else
-    pass "executed ${EXECUTED} assertion(s) (floor ${FUNC_FLOOR})"
-fi
-
-echo ""
-echo "=== Results: ${PASS}/${TOTAL} passed, ${FAIL} failed, ${UNDET} undetermined ==="
-if [ "${FAIL}" -gt 0 ]; then
-    echo "=== VERDICT: FAIL (real finding) ==="
-    exit 1
-elif [ "${UNDET}" -gt 0 ]; then
-    echo "=== VERDICT: UNDETERMINED — NOT a pass ==="
-    exit 2
-fi
-echo "=== VERDICT: PASS ==="
-exit 0
+# The floor and the verdict are evaluated by finish() (EXIT trap above).
