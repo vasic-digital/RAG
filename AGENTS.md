@@ -147,3 +147,19 @@ gofmt -l .
   Second, that `origin` fetches from GitHub and pushes to GitFlic with "four
   remotes configured": this checkout has a single remote, `origin`, fetching
   and pushing the same URL. Re-derive with `git remote -v`.
+
+## Project override inherited from the vasic umbrella: hosted Jev only (2026-10-28)
+
+This repository is an owned submodule of the `vasic` umbrella and is bound by the
+operator-authorized umbrella override **Override §11.4.279-§11.4.286: hosted
+TypeSafe Jev decision model only, no locally run decision models**. Its
+canonical text is `docs/governance/OVERRIDE-JEV-HOSTED-ONLY.md` in the umbrella
+repository (the checkout that contains this one). In short: never provision, run
+or prefer a local decision-model instance (llmctl `decide-*`, local decide
+gateway, LAN pins); the only decision endpoint is hosted TypeSafe through the
+toolkit's jev loaders; the key is read by env-var name (`TYPESAFE_API_KEY`) from
+the operator's `~/api_keys.sh` and its value is never printed, logged or
+committed; mode stays `shadow` and `JEV_GATE` must not be `off`. All other
+duties of §11.4.279-§11.4.286, anti-bluff, no-guessing, never-force-push and
+host safety stay binding. This pointer extends the constitution as the umbrella
+override does; it weakens no other clause.
