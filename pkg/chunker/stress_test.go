@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Source-Available-All-Rights-Reserved
 //
 // Stress tests for digital.vasic.rag/pkg/chunker. Chunkers are pure
 // functions against in-memory text; the stress value is asserting that

@@ -429,3 +429,7 @@ cat docs/test-coverage.md
 - The Challenge runner exercises in-memory corpora — for full
   production wire-evidence consult the parent `helix_qa` autonomous
   session bank.
+
+## Licence
+
+Source-available, all rights reserved. See [LICENSE](LICENSE), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Gate: `bash scripts/verify_licence.sh` (`--prove-failure` for its paired proof).
